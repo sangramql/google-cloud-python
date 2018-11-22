@@ -57,6 +57,12 @@ class Row(object):
     def row_key(self):
         """Row key.
 
+        For example:
+
+        .. literalinclude:: snippets.py
+            :start-after: [START bigtable_row_row_key]
+            :end-before: [END bigtable_row_row_key]
+
         :rtype: bytes
         :returns: The key for the current row.
         """
@@ -65,6 +71,12 @@ class Row(object):
     @property
     def table(self):
         """Row table.
+
+        For example:
+
+        .. literalinclude:: snippets.py
+            :start-after: [START bigtable_row_table]
+            :end-before: [END bigtable_row_table]
 
         :rtype: table: :class:`Table <google.cloud.bigtable.table.Table>`
         :returns: table: The table that owns the row.
@@ -287,7 +299,15 @@ class DirectRow(_SetDeleteRow):
         return self._pb_mutations
 
     def get_mutations_size(self):
-        """ Gets the total mutations size for current row """
+        """ Gets the total mutations size for current row
+
+        For example:
+
+        .. literalinclude:: snippets.py
+            :start-after: [START bigtable_row_get_mutations_size]
+            :end-before: [END bigtable_row_get_mutations_size]
+
+        """
 
         mutation_size = 0
         for mutation in self._get_mutations():
@@ -301,6 +321,12 @@ class DirectRow(_SetDeleteRow):
         The cell is determined by the ``row_key`` of this :class:`DirectRow`
         and the ``column``. The ``column`` must be in an existing
         :class:`.ColumnFamily` (as determined by ``column_family_id``).
+
+        For example:
+
+        .. literalinclude:: snippets.py
+            :start-after: [START bigtable_row_set_cell]
+            :end-before: [END bigtable_row_set_cell]
 
         .. note::
 
@@ -407,6 +433,12 @@ class DirectRow(_SetDeleteRow):
         After committing the accumulated mutations, resets the local
         mutations to an empty list.
 
+        For example:
+
+        .. literalinclude:: snippets.py
+            :start-after: [START bigtable_row_commit]
+            :end-before: [END bigtable_row_commit]
+
         :raises: :exc:`~.table.TooManyMutationsError` if the number of
                  mutations is greater than 100,000.
         """
@@ -499,6 +531,12 @@ class ConditionalRow(_SetDeleteRow):
         After committing the accumulated mutations, resets the local
         mutations.
 
+        For example:
+
+        .. literalinclude:: snippets.py
+            :start-after: [START bigtable_row_commit]
+            :end-before: [END bigtable_row_commit]
+
         :rtype: bool
         :returns: Flag indicating if the filter was matched (which also
                   indicates which set of mutations were applied by the server).
@@ -537,6 +575,12 @@ class ConditionalRow(_SetDeleteRow):
         :class:`ConditionalRow` and the ``column``. The ``column`` must be in
         an existing :class:`.ColumnFamily` (as determined by
         ``column_family_id``).
+
+        For example:
+
+        .. literalinclude:: snippets.py
+            :start-after: [START bigtable_row_set_cell]
+            :end-before: [END bigtable_row_set_cell]
 
         .. note::
 
