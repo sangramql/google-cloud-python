@@ -408,6 +408,12 @@ class DirectRow(_SetDeleteRow):
     def delete_cells(self, column_family_id, columns, time_range=None):
         """Deletes cells in this row.
 
+        For example:
+
+        .. literalinclude:: snippets.py
+            :start-after: [START bigtable_row_delete_cells]
+            :end-before: [END bigtable_row_delete_cells]
+
         .. note::
 
             This method adds a mutation to the accumulated mutations on this
@@ -695,6 +701,12 @@ class ConditionalRow(_SetDeleteRow):
     def delete_cells(self, column_family_id, columns, time_range=None,
                      state=True):
         """Deletes cells in this row.
+
+        For example:
+
+        .. literalinclude:: snippets.py
+            :start-after: [START bigtable_row_delete_cells]
+            :end-before: [END bigtable_row_delete_cells]
 
         .. note::
 
