@@ -358,6 +358,12 @@ class DirectRow(_SetDeleteRow):
     def delete(self):
         """Deletes this row from the table.
 
+        For example:
+
+        .. literalinclude:: snippets.py
+            :start-after: [START bigtable_row_delete]
+            :end-before: [END bigtable_row_delete]
+
         .. note::
 
             This method adds a mutation to the accumulated mutations on this
@@ -369,6 +375,12 @@ class DirectRow(_SetDeleteRow):
 
     def delete_cell(self, column_family_id, column, time_range=None):
         """Deletes cell in this row.
+
+        For example:
+
+        .. literalinclude:: snippets.py
+            :start-after: [START bigtable_row_delete_cell]
+            :end-before: [END bigtable_row_delete_cell]
 
         .. note::
 
@@ -446,7 +458,15 @@ class DirectRow(_SetDeleteRow):
         self.clear()
 
     def clear(self):
-        """Removes all currently accumulated mutations on the current row."""
+        """Removes all currently accumulated mutations on the current row.
+
+        For example:
+
+        .. literalinclude:: snippets.py
+            :start-after: [START bigtable_row_clear]
+            :end-before: [END bigtable_row_clear]
+
+        """
         del self._pb_mutations[:]
 
 
@@ -616,6 +636,12 @@ class ConditionalRow(_SetDeleteRow):
     def delete(self, state=True):
         """Deletes this row from the table.
 
+        For example:
+
+        .. literalinclude:: snippets.py
+            :start-after: [START bigtable_row_delete]
+            :end-before: [END bigtable_row_delete]
+
         .. note::
 
             This method adds a mutation to the accumulated mutations on this
@@ -632,6 +658,12 @@ class ConditionalRow(_SetDeleteRow):
     def delete_cell(self, column_family_id, column, time_range=None,
                     state=True):
         """Deletes cell in this row.
+
+        For example:
+
+        .. literalinclude:: snippets.py
+            :start-after: [START bigtable_row_delete_cell]
+            :end-before: [END bigtable_row_delete_cell]
 
         .. note::
 
@@ -695,7 +727,15 @@ class ConditionalRow(_SetDeleteRow):
     # pylint: enable=arguments-differ
 
     def clear(self):
-        """Removes all currently accumulated mutations on the current row."""
+        """Removes all currently accumulated mutations on the current row.
+
+        For example:
+
+        .. literalinclude:: snippets.py
+            :start-after: [START bigtable_row_clear]
+            :end-before: [END bigtable_row_clear]
+
+        """
         del self._true_pb_mutations[:]
         del self._false_pb_mutations[:]
 
@@ -726,7 +766,15 @@ class AppendRow(Row):
         self._rule_pb_list = []
 
     def clear(self):
-        """Removes all currently accumulated modifications on current row."""
+        """Removes all currently accumulated modifications on current row.
+
+        For example:
+
+        .. literalinclude:: snippets.py
+            :start-after: [START bigtable_row_clear]
+            :end-before: [END bigtable_row_clear]
+
+        """
         del self._rule_pb_list[:]
 
     def append_cell_value(self, column_family_id, column, value):

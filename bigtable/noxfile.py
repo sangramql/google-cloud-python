@@ -82,7 +82,7 @@ def system(session):
     session.run('py.test', '--quiet', 'tests/system.py', *session.posargs)
 
 
-@nox.session(python='3.7')
+@nox.session(python=['3.6', '3.7'])
 def lint(session):
     """Run linters.
 
