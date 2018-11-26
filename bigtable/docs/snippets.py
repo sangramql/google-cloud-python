@@ -74,48 +74,6 @@ class Config(object):
 
 
 def setup_module():
-    import os
-    from test_utils.system import EmulatorCreds
-    from google.cloud.environment_vars import BIGTABLE_EMULATOR
-
-    Config.IN_EMULATOR = os.getenv(BIGTABLE_EMULATOR) is not None
-
-    if Config.IN_EMULATOR:
-        credentials = EmulatorCreds()
-        client = Config.CLIENT = Client(admin=True, credentials=credentials)
-    else:
-        client = Config.CLIENT = Client(admin=True)
-    client = Config.CLIENT = Client(project="grass-clump-479", admin=True)
-    #     client = Config.CLIENT = Client(admin=True)
-    Config.INSTANCE = client.instance(INSTANCE_ID,
-                                      instance_type=PRODUCTION,
-                                      labels=LABELS)
-    #     cluster = Config.INSTANCE.cluster(CLUSTER_ID,
-    #                                       location_id=LOCATION_ID,
-    #                                       serve_nodes=SERVER_NODES,
-    #                                       default_storage_type=STORAGE_TYPE)
-    #     Config.INSTANCE.create(clusters=[cluster])
-    #     operation = Config.INSTANCE.create(clusters=[cluster])
-    #     # We want to make sure the operation completes.
-    #     operation.result(timeout=480)
-    Config.TABLE = Config.INSTANCE.table(TABLE_ID)
-    Config.TABLE.create()
-    gc_rule = column_family.MaxVersionsGCRule(2)
-    column_family1 = Config.TABLE.column_family(COLUMN_FAMILY_ID1,
-                                                gc_rule=gc_rule)
-    column_family1.create()
-    gc_rule2 = column_family.MaxVersionsGCRule(4)
-    column_family2 = Config.TABLE.column_family(COLUMN_FAMILY_ID2,
-                                                gc_rule=gc_rule2)
-    column_family2.create()
-
-
-def teardown_module():
-    #     Config.INSTANCE.delete()
-    pass
-
-
-def x___setup_module():
     client = Config.CLIENT = Client(admin=True)
     Config.INSTANCE = client.instance(INSTANCE_ID,
                                       instance_type=PRODUCTION,
@@ -129,11 +87,11 @@ def x___setup_module():
     operation.result(timeout=100)
 
 
-def x___teardown_module():
+def teardown_module():
     Config.INSTANCE.delete()
 
 
-def s___test_bigtable_create_instance():
+def test_bigtable_create_instance():
     # [START bigtable_create_prod_instance]
     from google.cloud.bigtable import Client
     from google.cloud.bigtable import enums
@@ -160,7 +118,7 @@ def s___test_bigtable_create_instance():
     instance.delete()
 
 
-def s___test_bigtable_create_additional_cluster():
+def test_bigtable_create_additional_cluster():
     # [START bigtable_create_cluster]
     from google.cloud.bigtable import Client
     from google.cloud.bigtable import enums
@@ -190,7 +148,7 @@ def s___test_bigtable_create_additional_cluster():
     cluster.delete()
 
 
-def s___test_bigtable_create_app_profile():
+def test_bigtable_create_app_profile():
     # [START bigtable_create_app_profile]
     from google.cloud.bigtable import Client
     client = Client(admin=True)
@@ -213,251 +171,90 @@ def s___test_bigtable_create_app_profile():
     app_profile.delete(ignore_warnings=True)
 
 
-def test_bigtable_row_setcell_rowkey():
-    # [START bigtable_row_set_cell]
+def test_bigtable_batcher_mutate_flush_mutate_rows():
+    # [START bigtable_batcher_mutate]
     from google.cloud.bigtable import Client
 
     client = Client(admin=True)
     instance = client.instance(INSTANCE_ID)
     table = instance.table(TABLE_ID)
-    row = table.row(ROW_KEY1)
+    # Batcher for max row bytes, max_row_bytes=1024 is optional.
+    batcher = table.mutations_batcher(max_row_bytes=1024)
 
-    cell_val = b'cell-val'
+    # Add a single row
+    row_key = b'row_key_1'
+    row = table.row(row_key)
     row.set_cell(COLUMN_FAMILY_ID1,
                  COL_NAME1,
-                 cell_val,
+                 'value-0',
                  timestamp=datetime.datetime.utcnow())
-    # [END bigtable_row_set_cell]
 
-    response = table.mutate_rows([row])
-    # validate that all rows written successfully
-    for i, status in enumerate(response):
-        assert status.code == 0
-
-    # [START bigtable_row_row_key]
+    # In batcher, mutate will flush current batch if it
+    # reaches the max_row_bytes
+    batcher.mutate(row)
+    batcher.flush()
+    # [END bigtable_batcher_mutate]
+    
+    # [START bigtable_batcher_flush]
     from google.cloud.bigtable import Client
 
     client = Client(admin=True)
     instance = client.instance(INSTANCE_ID)
     table = instance.table(TABLE_ID)
+    # Batcher for max row bytes, max_row_bytes=1024 is optional.
+    batcher = table.mutations_batcher(max_row_bytes=1024)
 
-    row = table.row(ROW_KEY1)
-    row_key = row.row_key
-    # [END bigtable_row_row_key]
-    assert row_key == ROW_KEY1
+    # Add a single row
+    row_key = b'row_key'
+    row = table.row(row_key)
+    row.set_cell(COLUMN_FAMILY_ID1, COL_NAME1, 'value-0')
 
-    # [START bigtable_row_table]
+    # In batcher, mutate will flush current batch if it
+    # reaches the max_row_bytes
+    batcher.mutate(row)
+    batcher.flush()
+    # [END bigtable_batcher_flush]
+
+    rows_on_table = []
+    for row in table.read_rows():
+        rows_on_table.append(row.row_key)
+    assert len(rows_on_table) == 2
+    table.truncate(timeout=200)
+
+    # [START bigtable_batcher_mutate_rows]
     from google.cloud.bigtable import Client
 
     client = Client(admin=True)
     instance = client.instance(INSTANCE_ID)
     table = instance.table(TABLE_ID)
+    batcher = table.mutations_batcher()
+    
+    row1 = table.row(b'row_key_1')
+    row2 = table.row(b'row_key_2')
+    row3 = table.row(b'row_key_3')
+    row4 = table.row(b'row_key_4')
 
-    row = table.row(ROW_KEY1)
-    table1 = row.table
-    # [END bigtable_row_table]
+    row1.set_cell(COLUMN_FAMILY_ID1, COL_NAME1, b'cell-val1')
+    row2.set_cell(COLUMN_FAMILY_ID1, COL_NAME1, b'cell-val2')
+    row3.set_cell(COLUMN_FAMILY_ID1, COL_NAME1, b'cell-val3')
+    row4.set_cell(COLUMN_FAMILY_ID1, COL_NAME1, b'cell-val4')
 
-    assert table1 == table
+    batcher.mutate_rows([row1, row2, row3, row4])
+
+    # batcher will flush current batch if it
+    # reaches the max flush_count
+    # Manually send the current batch to Cloud Bigtable
+    batcher.flush()
+    # [END bigtable_batcher_mutate_rows]
+
+    rows_on_table = []
+    for row in table.read_rows():
+        rows_on_table.append(row.row_key)
+    assert len(rows_on_table) == 4
     table.truncate(timeout=200)
 
 
-def test_bigtable_row_delete():
-    # [START bigtable_row_delete]
-    from google.cloud.bigtable import Client
-
-    client = Client(admin=True)
-    instance = client.instance(INSTANCE_ID)
-    table = instance.table(TABLE_ID)
-
-    row_key = b'row_key_1'
-    row_obj = table.row(row_key)
-    # [END bigtable_row_delete]
-
-    row_obj.set_cell(COLUMN_FAMILY_ID1, COL_NAME1, b'cell-val')
-    row_obj.commit()
-    actual_rows_keys = []
-    for row in table.read_rows():
-        actual_rows_keys.append(row.row_key)
-    assert actual_rows_keys == [row_key]
-
-    # [START bigtable_row_delete]
-    row_obj.delete()
-    row_obj.commit()
-    # [END bigtable_row_delete]
-
-    actual_rows_keys = []
-    for row in table.read_rows():
-        actual_rows_keys.append(row.row_key)
-    assert len(actual_rows_keys) == 0
-
-
-def test_bigtable_row_delete_cell():
-    # [START bigtable_row_delete_cell]
-    from google.cloud.bigtable import Client
-
-    client = Client(admin=True)
-    instance = client.instance(INSTANCE_ID)
-    table = instance.table(TABLE_ID)
-
-    row_key1 = b'row_key_1'
-    row_obj = table.row(row_key1)
-    # [END bigtable_row_delete_cell]
-
-    row_obj.set_cell(COLUMN_FAMILY_ID1, COL_NAME1, CELL_VAL1)
-    row_obj.commit()
-
-    row_key2 = b'row_key_2'
-    row_obj = table.row(row_key2)
-    row_obj.set_cell(COLUMN_FAMILY_ID2, COL_NAME2, CELL_VAL2)
-    row_obj.commit()
-
-    actual_rows_keys = []
-    for row in table.read_rows():
-        actual_rows_keys.append(row.row_key)
-    assert actual_rows_keys == [row_key1, row_key2]
-
-    # [START bigtable_row_delete_cell]
-    row_obj.delete_cell(COLUMN_FAMILY_ID2, COL_NAME2)
-    row_obj.commit()
-    # [END bigtable_row_delete_cell]
-
-    actual_rows_keys = []
-    for row in table.read_rows():
-        actual_rows_keys.append(row.row_key)
-    assert actual_rows_keys == [row_key1]
-    table.truncate(timeout=300)
-
-
-def test_bigtable_row_delete_cells():
-    # [START bigtable_row_delete_cells]
-    from google.cloud.bigtable import Client
-
-    client = Client(admin=True)
-    instance = client.instance(INSTANCE_ID)
-    table = instance.table(TABLE_ID)
-
-    row_key1 = b'row_key_1'
-    row_obj = table.row(row_key1)
-    # [END bigtable_row_delete_cells]
-
-    row_obj.set_cell(COLUMN_FAMILY_ID1, COL_NAME1, CELL_VAL1)
-    row_obj.commit()
-    row_obj.set_cell(COLUMN_FAMILY_ID1, COL_NAME2, CELL_VAL2)
-    row_obj.commit()
-
-    actual_rows_keys = []
-    for row in table.read_rows():
-        actual_rows_keys.append(row.row_key)
-    assert actual_rows_keys == [row_key1]
-
-    # [START bigtable_row_delete_cells]
-    row_obj.delete_cells(COLUMN_FAMILY_ID1, [COL_NAME1, COL_NAME2])
-    row_obj.commit()
-    # [END bigtable_row_delete_cells]
-
-    actual_rows_keys = []
-    for row in table.read_rows():
-        actual_rows_keys.append(row.row_key)
-    assert actual_rows_keys == []
-
-
-def test_bigtable_row_clear():
-    # [START bigtable_row_clear]
-    from google.cloud.bigtable import Client
-
-    client = Client(admin=True)
-    instance = client.instance(INSTANCE_ID)
-    table = instance.table(TABLE_ID)
-
-    row_key = b'row_key_1'
-    row_obj = table.row(row_key)
-    row_obj.set_cell(COLUMN_FAMILY_ID1, COL_NAME1, b'cell-val')
-    # [END bigtable_row_clear]
-
-    mutation_size = row_obj.get_mutations_size()
-    assert mutation_size > 0
-
-    # [START bigtable_row_clear]
-    row_obj.clear()
-    # [END bigtable_row_clear]
-
-    mutation_size = row_obj.get_mutations_size()
-    assert mutation_size == 0
-
-
-def test_bigtable_row_clear_get_mutations_size():
-    # [START bigtable_row_get_mutations_size]
-    from google.cloud.bigtable import Client
-
-    client = Client(admin=True)
-    instance = client.instance(INSTANCE_ID)
-    table = instance.table(TABLE_ID)
-
-    row_key_id = b'row_key_1'
-    row_obj = table.row(row_key_id)
-
-    mutation_size = row_obj.get_mutations_size()
-    # [END bigtable_row_get_mutations_size]
-    row_obj.set_cell(COLUMN_FAMILY_ID1, COL_NAME1, b'cell-val')
-    mutation_size = row_obj.get_mutations_size()
-    assert mutation_size > 0
-
-    row_obj.clear()
-    mutation_size = row_obj.get_mutations_size()
-    assert mutation_size == 0
-
-
-def test_bigtable_row_setcell_commit_rowkey():
-    # [START bigtable_row_set_cell]
-    from google.cloud.bigtable import Client
-
-    client = Client(admin=True)
-    instance = client.instance(INSTANCE_ID)
-    table = instance.table(TABLE_ID)
-
-    row_key = b'row_key_1'
-    cell_val = b'cell-val'
-    row_obj = table.row(row_key)
-    row_obj.set_cell(COLUMN_FAMILY_ID1, COL_NAME1, cell_val)
-    # [END bigtable_row_set_cell]
-    row_obj.commit()
-
-    # [START bigtable_row_commit]
-    from google.cloud.bigtable import Client
-
-    client = Client(admin=True)
-    instance = client.instance(INSTANCE_ID)
-    table = instance.table(TABLE_ID)
-
-    row_key = b'row_key_2'
-    cell_val = b'cell-val'
-    row_obj = table.row(row_key)
-    row_obj.set_cell(COLUMN_FAMILY_ID1, COL_NAME1, cell_val)
-    row_obj.commit()
-    # [END bigtable_row_commit]
-
-    actual_rows_keys = []
-    for row in table.read_rows():
-        actual_rows_keys.append(row.row_key)
-
-    assert actual_rows_keys == [b'row_key_1', b'row_key_2']
-
-    # [START bigtable_row_row_key]
-    from google.cloud.bigtable import Client
-
-    client = Client(admin=True)
-    instance = client.instance(INSTANCE_ID)
-    table = instance.table(TABLE_ID)
-
-    row_key_id = b'row_key_2'
-    row_obj = table.row(row_key_id)
-    row_key = row_obj.row_key
-    # [END bigtable_row_row_key]
-    assert row_key == row_key_id
-    table.truncate(timeout=300)
-
-
-def s___test_bigtable_list_instances():
+def test_bigtable_list_instances():
     # [START bigtable_list_instances]
     from google.cloud.bigtable import Client
 
@@ -467,7 +264,7 @@ def s___test_bigtable_list_instances():
     assert len(instances_list) > 0
 
 
-def s___test_bigtable_list_clusters_on_instance():
+def test_bigtable_list_clusters_on_instance():
     # [START bigtable_list_clusters_on_instance]
     from google.cloud.bigtable import Client
 
@@ -478,7 +275,7 @@ def s___test_bigtable_list_clusters_on_instance():
     assert len(clusters_list) > 0
 
 
-def s___test_bigtable_list_clusters_in_project():
+def test_bigtable_list_clusters_in_project():
     # [START bigtable_list_clusters_in_project]
     from google.cloud.bigtable import Client
 
@@ -488,7 +285,7 @@ def s___test_bigtable_list_clusters_in_project():
     assert len(clusters_list) > 0
 
 
-def s___test_bigtable_list_app_profiles():
+def test_bigtable_list_app_profiles():
     # [START bigtable_list_app_profiles]
     from google.cloud.bigtable import Client
 
@@ -507,7 +304,7 @@ def s___test_bigtable_list_app_profiles():
     assert len(app_profiles_list) > 0
 
 
-def s___test_bigtable_instance_exists():
+def test_bigtable_instance_exists():
     # [START bigtable_check_instance_exists]
     from google.cloud.bigtable import Client
 
@@ -518,7 +315,7 @@ def s___test_bigtable_instance_exists():
     assert instance_exists
 
 
-def s___test_bigtable_cluster_exists():
+def test_bigtable_cluster_exists():
     # [START bigtable_check_cluster_exists]
     from google.cloud.bigtable import Client
 
@@ -530,7 +327,7 @@ def s___test_bigtable_cluster_exists():
     assert cluster_exists
 
 
-def s___test_bigtable_reload_instance():
+def test_bigtable_reload_instance():
     # [START bigtable_reload_instance]
     from google.cloud.bigtable import Client
 
@@ -541,7 +338,7 @@ def s___test_bigtable_reload_instance():
     assert instance.type_ == PRODUCTION.value
 
 
-def s___test_bigtable_reload_cluster():
+def test_bigtable_reload_cluster():
     # [START bigtable_reload_cluster]
     from google.cloud.bigtable import Client
 
@@ -553,7 +350,7 @@ def s___test_bigtable_reload_cluster():
     assert cluster.serve_nodes == SERVER_NODES
 
 
-def s___test_bigtable_update_instance():
+def test_bigtable_update_instance():
     # [START bigtable_update_instance]
     from google.cloud.bigtable import Client
 
@@ -566,7 +363,7 @@ def s___test_bigtable_update_instance():
     assert instance.display_name == display_name
 
 
-def s___test_bigtable_update_cluster():
+def test_bigtable_update_cluster():
     # [START bigtable_update_cluster]
     from google.cloud.bigtable import Client
 
@@ -579,7 +376,7 @@ def s___test_bigtable_update_cluster():
     assert cluster.serve_nodes == 4
 
 
-def s___test_bigtable_create_table():
+def test_bigtable_create_table():
     # [START bigtable_create_table]
     from google.cloud.bigtable import Client
     from google.cloud.bigtable import column_family
@@ -594,7 +391,7 @@ def s___test_bigtable_create_table():
     assert table.exists()
 
 
-def s___test_bigtable_list_tables():
+def test_bigtable_list_tables():
     # [START bigtable_list_tables]
     from google.cloud.bigtable import Client
 
@@ -605,7 +402,7 @@ def s___test_bigtable_list_tables():
     assert len(tables_list) > 0
 
 
-def s___test_bigtable_delete_cluster():
+def test_bigtable_delete_cluster():
     # [START bigtable_delete_cluster]
     from google.cloud.bigtable import Client
 
@@ -628,7 +425,7 @@ def s___test_bigtable_delete_cluster():
     assert not cluster_to_delete.exists()
 
 
-def s___test_bigtable_delete_instance():
+def test_bigtable_delete_instance():
     # [START bigtable_delete_instance]
     from google.cloud.bigtable import Client
 
@@ -657,7 +454,7 @@ def s___test_bigtable_delete_instance():
     assert not instance_to_delete.exists()
 
 
-def s___test_bigtable_test_iam_permissions():
+def test_bigtable_test_iam_permissions():
     # [START bigtable_test_iam_permissions]
     from google.cloud.bigtable import Client
 
@@ -671,7 +468,7 @@ def s___test_bigtable_test_iam_permissions():
     assert permissions_allowed == permissions
 
 
-def s___test_bigtable_set_iam_policy_then_get_iam_policy():
+def test_bigtable_set_iam_policy_then_get_iam_policy():
     # [START bigtable_set_iam_policy]
     from google.cloud.bigtable import Client
     from google.cloud.bigtable.policy import Policy
