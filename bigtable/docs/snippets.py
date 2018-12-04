@@ -297,6 +297,33 @@ def test_bigtable_create_table():
     assert table.exists()
 
 
+def test_add_row_key(self):
+    row_keys = [
+        b'row_key_1', b'row_key_2', b'row_key_3', b'row_key_4',
+        b'row_key_5', b'row_key_6', b'row_key_7', b'row_key_8',
+        b'row_key_9']
+
+    rows = []
+    for row_key in row_keys:
+        row = self._table.row(row_key)
+        row.set_cell(COLUMN_FAMILY_ID1, COL_NAME1, CELL_VAL1)
+        rows.append(row)
+        self.rows_to_delete.append(row)
+    self._table.mutate_rows(rows)
+
+    row_set = RowSet()
+    row_set.add_row_range(RowRange(start_key=b'row_key_3',
+                                   end_key=b'row_key_7'))
+    row_set.add_row_key(b'row_key_1')
+
+    read_rows = self._table.yield_rows(row_set=row_set)
+
+    expected_row_keys = [b'row_key_1', b'row_key_3', b'row_key_4',
+                         b'row_key_5', b'row_key_6']
+    found_row_keys = [row.row_key for row in read_rows]
+    self.assertEqual(found_row_keys, expected_row_keys)
+
+
 def test_bigtable_list_tables():
     # [START bigtable_list_tables]
     from google.cloud.bigtable import Client
