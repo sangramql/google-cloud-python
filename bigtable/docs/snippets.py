@@ -36,22 +36,25 @@ from test_utils.system import unique_resource_id
 from google.cloud._helpers import UTC
 from google.cloud.bigtable import Client
 from google.cloud.bigtable import enums
+from google.cloud.bigtable import column_family
 
 
-INSTANCE_ID = "snippet-" + unique_resource_id("-")
-CLUSTER_ID = "clus-1-" + unique_resource_id("-")
-LOCATION_ID = "us-central1-f"
-ALT_LOCATION_ID = "us-central1-a"
+INSTANCE_ID = "snippet-" + unique_resource_id('-')
+CLUSTER_ID = "clus-1-" + unique_resource_id('-')
+TABLE_ID = "tabl-1-" + unique_resource_id('-')
+COLUMN_FAMILY_ID = "col_fam_id-" + unique_resource_id('-')
+LOCATION_ID = 'us-central1-f'
+ALT_LOCATION_ID = 'us-central1-a'
 PRODUCTION = enums.Instance.Type.PRODUCTION
 SERVER_NODES = 3
 STORAGE_TYPE = enums.StorageType.SSD
-LABEL_KEY = u"python-snippet"
-LABEL_STAMP = (
-    datetime.datetime.utcnow()
-    .replace(microsecond=0, tzinfo=UTC)
-    .strftime("%Y-%m-%dt%H-%M-%S")
-)
+LABEL_KEY = u'python-snippet'
+LABEL_STAMP = datetime.datetime.utcnow() \
+                               .replace(microsecond=0, tzinfo=UTC,) \
+                               .strftime("%Y-%m-%dt%H-%M-%S")
 LABELS = {LABEL_KEY: str(LABEL_STAMP)}
+COL_NAME1 = b'col-name1'
+CELL_VAL1 = b'cell-val'
 
 
 class Config(object):
@@ -60,9 +63,9 @@ class Config(object):
     This is a mutable stand-in to allow test set-up to modify
     global state.
     """
-
     CLIENT = None
     INSTANCE = None
+    TABLE = None
 
 
 def setup_module():
@@ -79,6 +82,12 @@ def setup_module():
     operation = Config.INSTANCE.create(clusters=[cluster])
     # We want to make sure the operation completes.
     operation.result(timeout=100)
+    Config.TABLE = Config.INSTANCE.table(TABLE_ID)
+    Config.TABLE.create()
+    gc_rule = column_family.MaxVersionsGCRule(2)
+    column_family1 = Config.TABLE.column_family(COLUMN_FAMILY_ID,
+                                                gc_rule=gc_rule)
+    column_family1.create()
 
 
 def teardown_module():
@@ -310,7 +319,7 @@ def test_bigtable_create_table():
     assert table.exists()
 
 
-def test_add_row_key(self):
+def test_bigtable_add_row_add_row_range_add_row_range_from_keys():
     row_keys = [
         b'row_key_1', b'row_key_2', b'row_key_3', b'row_key_4',
         b'row_key_5', b'row_key_6', b'row_key_7', b'row_key_8',
@@ -318,23 +327,68 @@ def test_add_row_key(self):
 
     rows = []
     for row_key in row_keys:
-        row = self._table.row(row_key)
-        row.set_cell(COLUMN_FAMILY_ID1, COL_NAME1, CELL_VAL1)
+        row = Config.TABLE.row(row_key)
+        row.set_cell(COLUMN_FAMILY_ID, COL_NAME1, CELL_VAL1)
         rows.append(row)
-        self.rows_to_delete.append(row)
-    self._table.mutate_rows(rows)
+    Config.TABLE.mutate_rows(rows)
+
+    # [START bigtable_add_row_key]
+    from google.cloud.bigtable import Client
+    from google.cloud.bigtable.row_set import RowSet
+
+    client = Client(admin=True)
+    instance = client.instance(INSTANCE_ID)
+    table = instance.table(TABLE_ID)
+
+    row_set = RowSet()
+    row_set.add_row_key(b'row_key_5')
+
+    read_rows = table.read_rows(row_set=row_set)
+    # [END bigtable_add_row_key]
+    expected_row_keys = [b'row_key_5']
+    found_row_keys = [row.row_key for row in read_rows]
+    assert found_row_keys == expected_row_keys
+
+    # [START bigtable_add_row_range]
+    from google.cloud.bigtable import Client
+    from google.cloud.bigtable.row_set import RowSet
+    from google.cloud.bigtable.row_set import RowRange
+
+    client = Client(admin=True)
+    instance = client.instance(INSTANCE_ID)
+    table = instance.table(TABLE_ID)
 
     row_set = RowSet()
     row_set.add_row_range(RowRange(start_key=b'row_key_3',
                                    end_key=b'row_key_7'))
-    row_set.add_row_key(b'row_key_1')
 
-    read_rows = self._table.yield_rows(row_set=row_set)
-
-    expected_row_keys = [b'row_key_1', b'row_key_3', b'row_key_4',
+    read_rows = table.read_rows(row_set=row_set)
+    # [END bigtable_add_row_range]
+    expected_row_keys = [b'row_key_3', b'row_key_4',
                          b'row_key_5', b'row_key_6']
     found_row_keys = [row.row_key for row in read_rows]
-    self.assertEqual(found_row_keys, expected_row_keys)
+    assert found_row_keys == expected_row_keys
+
+    # [START bigtable_row_range_from_keys]
+    from google.cloud.bigtable import Client
+    from google.cloud.bigtable.row_set import RowSet
+
+    client = Client(admin=True)
+    instance = client.instance(INSTANCE_ID)
+    table = instance.table(TABLE_ID)
+
+    row_set = RowSet()
+    row_set.add_row_range_from_keys(start_key=b'row_key_3',
+                                    end_key=b'row_key_7')
+
+    read_rows = table.read_rows(row_set=row_set)
+    # [END bigtable_row_range_from_keys]
+    expected_row_keys = [b'row_key_3', b'row_key_4',
+                         b'row_key_5', b'row_key_6']
+    found_row_keys = [row.row_key for row in read_rows]
+    assert found_row_keys == expected_row_keys
+
+    table.truncate(timeout=200)
 
 
 def test_bigtable_list_tables():
