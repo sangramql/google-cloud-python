@@ -19,6 +19,7 @@ import copy
 import datetime
 import json
 import warnings
+import time
 
 import six
 
@@ -751,7 +752,6 @@ class Bucket(_PropertyMixin):
         :rtype: :class:`google.cloud.storage.blob.Blob` or None
         :returns: The blob object if it exists, otherwise None.
         """
-        import time
         import random
 
         blob = Blob(
@@ -767,14 +767,16 @@ class Bucket(_PropertyMixin):
                 #       Batch.finish() is called, the resulting `NotFound` will be
                 #       raised.
                 blob.reload(client=client)
-                break
+            except NotFound:
+                return None
             except Exception as e:
                 if retry == self.RETRIES - 1:
                     raise e
                 else:
                     rand_num = random.random()
-                    time.sleep(min(rand_num + 2 ** (retry - 1), rand_num + 32))
-        return blob
+                    time.sleep(min(rand_num + 2 ** (retry), rand_num + 32))
+            else:
+                return blob
 
     def list_blobs(
         self,
